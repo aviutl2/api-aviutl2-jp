@@ -106,7 +106,9 @@ app.get(
   async (c) => {
     const version = c.req.param("version");
     const versions = await fetchAviUtl2Versions();
-    const matched = versions.find((item) => item.version === version);
+    const matched = versions.find(
+      (item) => item.version === version || item.version === `2.00${version}`,
+    );
     if (!matched) {
       return c.json({ message: "Version not found" }, 404);
     }
@@ -165,9 +167,10 @@ app.get(
       return c.json({ message: "Invalid query parameters" }, 400);
     }
     const versions = await fetchAviUtl2Versions();
-    const matched = version === "latest"
-      ? versions[0]
-      : versions.find((item) => item.version === version);
+    const matched =
+      version === "latest"
+        ? versions[0]
+        : versions.find((item) => item.version === version || item.version === `2.00${version}`);
     if (!matched) {
       return c.json({ message: "Version not found" }, 404);
     }

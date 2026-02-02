@@ -47,7 +47,8 @@ export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
   });
 
   const result: AviUtl2Version[] = links.map((link) => ({
-    version: link,
+    // TODO: 2.01になったら対応する
+    version: `2.00${link}`,
     downloads: {
       zip: `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${link}.zip`,
       exe: `https://spring-fragrance.mints.ne.jp/aviutl/AviUtl2${link}_setup.exe`,
