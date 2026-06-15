@@ -38,7 +38,7 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
   const releasedAt = new Date(lastModified).toISOString();
   await env.released_at_cache.put(cacheKey, releasedAt, {
     // NOTE: キャッシュの有効期限をバラけさせて負荷を分散させる
-    expirationTtl: 60 * 60 * 24 * (Math.random() * 30),
+    expirationTtl: 60 * 60 * 24 * (1 + Math.random() * 30),
   });
   return releasedAt;
 }
