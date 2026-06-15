@@ -36,10 +36,8 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
     throw new Error(`Failed to get Last-Modified header for version ${version}`);
   }
   const releasedAt = new Date(lastModified).toISOString();
-  await env.released_at_cache.put(cacheKey, releasedAt, {
-    // NOTE: キャッシュの有効期限をバラけさせて負荷を分散させる
-    expirationTtl: 60 * 60 * 24 * (1 + Math.random() * 30),
-  });
+  // NOTE: Last-Modifiedは基本的には永久に変わらないはずなので、キャッシュの有効期限は特に設けない
+  await env.released_at_cache.put(cacheKey, releasedAt);
   return releasedAt;
 }
 
