@@ -1,7 +1,9 @@
+import { env } from "cloudflare:workers";
 import z from "zod";
 
 export const aviutl2VersionSchema = z.object({
   version: z.string(),
+  released_at: z.string(),
   downloads: z.object({
     zip: z.url(),
     exe: z.url(),
@@ -12,6 +14,34 @@ export type AviUtl2Version = z.infer<typeof aviutl2VersionSchema>;
 export const versionsSchema = z.object({
   versions: z.array(aviutl2VersionSchema),
 });
+
+const timestampCacheVersion = 1;
+async function fetchAviUtl2Timestamp(version: string): Promise<string> {
+  const cacheKey = `aviutl2-version-${version}-timestamp-v${timestampCacheVersion}`;
+  const cached = await env.released_at_cache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const response = await fetch(
+    `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${version}.zip`,
+    {
+      method: "HEAD",
+      cf: {
+        cacheTtl: 3600,
+      },
+    },
+  );
+  const lastModified = response.headers.get("Last-Modified");
+  if (!lastModified) {
+    throw new Error(`Failed to get Last-Modified header for version ${version}`);
+  }
+  const releasedAt = new Date(lastModified).toISOString();
+  await env.released_at_cache.put(cacheKey, releasedAt, {
+    expirationTtl: 60 * 60 * 24 * 30, // 30 days
+  });
+  return releasedAt;
+}
+
 export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
   const versions = await fetch("https://spring-fragrance.mints.ne.jp/aviutl/oldver2.php", {
     cf: {
@@ -46,13 +76,17 @@ export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
     return 0;
   });
 
-  const result: AviUtl2Version[] = links.map((link) => ({
-    // TODO: 2.01になったら対応する
-    version: `2.00${link}`,
-    downloads: {
-      zip: `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${link}.zip`,
-      exe: `https://spring-fragrance.mints.ne.jp/aviutl/AviUtl2${link}_setup.exe`,
-    },
-  }));
+  const result: AviUtl2Version[] = [];
+  for (const link of links) {
+    result.push({
+      // TODO: 2.01になったら対応する
+      version: `2.00${link}`,
+      released_at: await fetchAviUtl2Timestamp(link),
+      downloads: {
+        zip: `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${link}.zip`,
+        exe: `https://spring-fragrance.mints.ne.jp/aviutl/AviUtl2${link}_setup.exe`,
+      },
+    });
+  }
   return result;
 }
