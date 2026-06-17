@@ -1,5 +1,8 @@
 import { env } from "cloudflare:workers";
 import z from "zod";
+import { Mutex } from "@core/asyncutil";
+
+const throttleMutex = new Mutex();
 
 export const aviutl2VersionSchema = z.object({
   version: z.string(),
@@ -22,6 +25,7 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
   if (cached) {
     return cached;
   }
+  await using _lock = throttleMutex.acquire();
   const response = await fetch(
     `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${version}.zip`,
     {
