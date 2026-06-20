@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import z from "zod";
-import { Mutex } from "@core/asyncutil";
+import AsyncLock from "async-lock";
 
-const throttleMutex = new Mutex();
+const throttleMutex = new AsyncLock();
 
 export const aviutl2VersionSchema = z.object({
   version: z.string(),
@@ -25,15 +25,13 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
   if (cached) {
     return cached;
   }
-  await using _lock = throttleMutex.acquire();
-  const response = await fetch(
-    `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${version}.zip`,
-    {
+  const response = await throttleMutex.acquire("lock", async () =>
+    fetch(`https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${version}.zip`, {
       method: "HEAD",
       cf: {
         cacheTtl: 3600,
       },
-    },
+    }),
   );
   const lastModified = response.headers.get("Last-Modified");
   if (!lastModified) {
