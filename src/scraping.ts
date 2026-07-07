@@ -18,6 +18,20 @@ export const versionsSchema = z.object({
   versions: z.array(aviutl2VersionSchema),
 });
 
+function versionToUrl(version: string): { zip: string; exe: string } {
+  if (version.startsWith("v")) {
+    return {
+      zip: `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2_${version}.zip`,
+      exe: `https://spring-fragrance.mints.ne.jp/aviutl/AviUtl2_${version}_setup.exe`,
+    };
+  } else {
+    return {
+      zip: `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${version}.zip`,
+      exe: `https://spring-fragrance.mints.ne.jp/aviutl/AviUtl2${version}_setup.exe`,
+    };
+  }
+}
+
 const timestampCacheVersion = 1;
 async function fetchAviUtl2Timestamp(version: string): Promise<string> {
   const cacheKey = `aviutl2-version-${version}-timestamp-v${timestampCacheVersion}`;
@@ -26,7 +40,7 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
     return cached;
   }
   const response = await throttleMutex.acquire("lock", async () =>
-    fetch(`https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${version}.zip`, {
+    fetch(versionToUrl(version).zip, {
       method: "HEAD",
       cf: {
         cacheTtl: 3600,
@@ -35,7 +49,9 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
   );
   const lastModified = response.headers.get("Last-Modified");
   if (!lastModified) {
-    throw new Error(`Failed to get Last-Modified header for version ${version}`);
+    throw new Error(
+      `Failed to get Last-Modified header for version ${version}`,
+    );
   }
   const releasedAt = new Date(lastModified).toISOString();
   // NOTE: Last-Modifiedは基本的には永久に変わらないはずなので、キャッシュの有効期限は特に設けない
@@ -44,15 +60,24 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
 }
 
 export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
-  const versions = await fetch("https://spring-fragrance.mints.ne.jp/aviutl/oldver2.php", {
-    cf: {
-      cacheTtl: 3600,
+  const versions = await fetch(
+    "https://spring-fragrance.mints.ne.jp/aviutl/oldver2.php",
+    {
+      cf: {
+        cacheTtl: 3600,
+      },
     },
-  });
-  const versionsHtml = await versions.text();
-  const links = [...versionsHtml.matchAll(/<a href="aviutl2([\d+a-zA-Z]+?)\.zip">/g)].map(
-    (m) => m[1],
   );
+  const versionsHtml = await versions.text();
+  const links = [
+    ...versionsHtml.matchAll(/<a href="aviutl2_?([\d+a-zA-Z]+?)\.zip">/g),
+  ]
+    .map((m) => m[1])
+    .filter((link) => link !== "sdk")
+    .concat(
+      // FIXME: 「過去のバージョン」ページが壊れている...
+      ["v2.0.54"],
+    );
   links.sort((a, b) => {
     const segmentsA = a.split(/(\d+|[a-zA-Z]+)/).filter((s) => s.length > 0);
     const segmentsB = b.split(/(\d+|[a-zA-Z]+)/).filter((s) => s.length > 0);
@@ -79,13 +104,9 @@ export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
 
   const result: AviUtl2Version[] = await Promise.all(
     links.map(async (link) => ({
-      // TODO: 2.01になったら対応する
-      version: `2.00${link}`,
+      version: link.startsWith("v") ? link : `2.00${link}`,
       released_at: await fetchAviUtl2Timestamp(link),
-      downloads: {
-        zip: `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${link}.zip`,
-        exe: `https://spring-fragrance.mints.ne.jp/aviutl/AviUtl2${link}_setup.exe`,
-      },
+      downloads: versionToUrl(link),
     })),
   );
   return result;
