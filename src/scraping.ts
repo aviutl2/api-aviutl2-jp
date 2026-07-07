@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { Temporal, toTemporalInstant } from "temporal-polyfill-lite";
 import z from "zod";
 import AsyncLock from "async-lock";
 
@@ -32,7 +33,7 @@ function versionToUrl(version: string): { zip: string; exe: string } {
   }
 }
 
-const timestampCacheVersion = 1;
+const timestampCacheVersion = 2;
 async function fetchAviUtl2Timestamp(version: string): Promise<string> {
   const cacheKey = `aviutl2-version-${version}-timestamp-v${timestampCacheVersion}`;
   const cached = await env.released_at_cache.get(cacheKey);
@@ -53,10 +54,18 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
       `Failed to get Last-Modified header for version ${version}`,
     );
   }
-  const releasedAt = new Date(lastModified).toISOString();
+  const releasedAt = toTemporalInstant
+    .apply(new Date(lastModified))
+    .toZonedDateTimeISO("Asia/Tokyo");
+  const releasedAtStr = releasedAt.toString({
+    timeZoneName: "never",
+  });
   // NOTE: Last-Modifiedは基本的には永久に変わらないはずなので、キャッシュの有効期限は特に設けない
-  await env.released_at_cache.put(cacheKey, releasedAt);
-  return releasedAt;
+  await env.released_at_cache.put(
+    cacheKey,
+    releasedAtStr,
+  );
+  return releasedAtStr;
 }
 
 export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
