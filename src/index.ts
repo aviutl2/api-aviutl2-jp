@@ -2,7 +2,11 @@ import { Hono } from "hono";
 import { describeRoute, openAPIRouteHandler, resolver } from "hono-openapi";
 import z from "zod";
 import { dedent } from "./utils.ts";
-import { aviutl2VersionSchema, fetchAviUtl2Versions, versionsSchema } from "./scraping.ts";
+import {
+  aviutl2VersionSchema,
+  fetchAviUtl2Versions,
+  versionsSchema,
+} from "./scraping.ts";
 
 const app = new Hono();
 const downloadTypeSchema = z.enum(["installer", "zip"]);
@@ -60,10 +64,10 @@ app.get(
   describeRoute({
     description: "Get latest AviUtl2 version",
     responses: {
-      200: {
-        description: "Latest AviUtl2 version",
+      302: {
+        description: "Redirect to latest version",
         content: {
-          "application/json": { schema: resolver(aviutl2VersionSchema) },
+          "text/plain": { schema: { type: "string" } },
         },
       },
       404: {
@@ -78,9 +82,15 @@ app.get(
     const versions = await fetchAviUtl2Versions();
     const latest = versions[0];
     if (!latest) {
-      return c.json({ message: "No versions available" }, 404);
+      return c.json(
+        {
+          message:
+            "No versions available, something went wrong! Please wait for admin to fix this.",
+        },
+        500,
+      );
     }
-    return c.json(latest);
+    return c.redirect(`/versions/${latest.version}`, 302);
   },
 );
 
@@ -95,6 +105,12 @@ app.get(
           "application/json": { schema: resolver(aviutl2VersionSchema) },
         },
       },
+      302: {
+        description: "Redirect to version that is more specific",
+        content: {
+          "text/plain": { schema: { type: "string" } },
+        },
+      },
       404: {
         description: "Version not found",
         content: {
@@ -106,13 +122,18 @@ app.get(
   async (c) => {
     const version = c.req.param("version");
     const versions = await fetchAviUtl2Versions();
-    const matched = versions.find(
-      (item) => item.version === version || item.version === `2.00${version}`,
-    );
-    if (!matched) {
-      return c.json({ message: "Version not found" }, 404);
+    const exactMatched = versions.find((item) => item.version === version);
+    if (exactMatched) {
+      return c.json(exactMatched);
     }
-    return c.json(matched);
+    const ambiguousMatched = versions.find(
+      (item) =>
+        item.version === `v${version}` || item.version === `2.00${version}`,
+    );
+    if (ambiguousMatched) {
+      return c.redirect(`/versions/${ambiguousMatched.version}`, 302);
+    }
+    return c.json({ message: "Version not found" }, 404);
   },
 );
 
@@ -167,14 +188,29 @@ app.get(
       return c.json({ message: "Invalid query parameters" }, 400);
     }
     const versions = await fetchAviUtl2Versions();
+    if (versions.length === 0) {
+      return c.json(
+        {
+          message:
+            "No versions available, something went wrong! Please wait for admin to fix this.",
+        },
+        500,
+      );
+    }
     const matched =
       version === "latest"
         ? versions[0]
-        : versions.find((item) => item.version === version || item.version === `2.00${version}`);
+        : versions.find(
+            (item) =>
+              item.version === version ||
+              item.version === `v${version}` ||
+              item.version === `2.00${version}`,
+          );
     if (!matched) {
       return c.json({ message: "Version not found" }, 404);
     }
-    const url = parsedType.data === "zip" ? matched.downloads.zip : matched.downloads.exe;
+    const url =
+      parsedType.data === "zip" ? matched.downloads.zip : matched.downloads.exe;
     return c.redirect(url, 302);
   },
 );

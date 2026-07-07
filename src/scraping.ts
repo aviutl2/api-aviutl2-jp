@@ -61,10 +61,7 @@ async function fetchAviUtl2Timestamp(version: string): Promise<string> {
     timeZoneName: "never",
   });
   // NOTE: Last-Modifiedは基本的には永久に変わらないはずなので、キャッシュの有効期限は特に設けない
-  await env.released_at_cache.put(
-    cacheKey,
-    releasedAtStr,
-  );
+  await env.released_at_cache.put(cacheKey, releasedAtStr);
   return releasedAtStr;
 }
 
@@ -109,7 +106,7 @@ export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
 
   const result: AviUtl2Version[] = await Promise.all(
     links.map(async (link) => ({
-      version: link.startsWith("v") ? link : `2.00${link}`,
+      version: link.startsWith("beta") ? `2.00${link}` : link,
       released_at: await fetchAviUtl2Timestamp(link),
       downloads: versionToUrl(link),
     })),
