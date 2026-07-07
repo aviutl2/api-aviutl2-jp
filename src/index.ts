@@ -7,12 +7,21 @@ import {
   fetchAviUtl2Versions,
   versionsSchema,
 } from "./scraping.ts";
+import { cors } from "hono/cors";
 
 const app = new Hono();
 const downloadTypeSchema = z.enum(["installer", "zip"]);
 const errorSchema = z.object({
   message: z.string(),
 });
+
+app.use(
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type"],
+  }),
+);
 
 app.get(
   "/",
