@@ -70,14 +70,10 @@ export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
   );
   const versionsHtml = await versions.text();
   const links = [
-    ...versionsHtml.matchAll(/<a href="aviutl2_?([\d+a-zA-Z]+?)\.zip">/g),
+    ...versionsHtml.matchAll(/<a href="aviutl2_?([\d+a-zA-Z\.]+?)\.zip">/g),
   ]
     .map((m) => m[1])
-    .filter((link) => link !== "sdk")
-    .concat(
-      // FIXME: 「過去のバージョン」ページが壊れている...
-      ["v2.0.54"],
-    );
+    .filter((link) => link !== "sdk");
   links.sort((a, b) => {
     const segmentsA = a.split(/(\d+|[a-zA-Z]+)/).filter((s) => s.length > 0);
     const segmentsB = b.split(/(\d+|[a-zA-Z]+)/).filter((s) => s.length > 0);
