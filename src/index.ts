@@ -137,7 +137,9 @@ app.get(
     }
     const ambiguousMatched = versions.find(
       (item) =>
-        item.version === `v${version}` || item.version === `2.00${version}`,
+        item.version === `v${version}` ||
+        item.version === `2.00${version}` ||
+        item.id.toString() === version,
     );
     if (ambiguousMatched) {
       return c.redirect(`/versions/${ambiguousMatched.version}`, 302);
@@ -213,7 +215,8 @@ app.get(
             (item) =>
               item.version === version ||
               item.version === `v${version}` ||
-              item.version === `2.00${version}`,
+              item.version === `2.00${version}` ||
+              item.id.toString() === version,
           );
     if (!matched) {
       return c.json({ message: "Version not found" }, 404);

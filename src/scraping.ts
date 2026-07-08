@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { Temporal, toTemporalInstant } from "temporal-polyfill-lite";
+import { toTemporalInstant } from "temporal-polyfill-lite";
 import z from "zod";
 import AsyncLock from "async-lock";
 
@@ -7,6 +7,7 @@ const throttleMutex = new AsyncLock();
 
 export const aviutl2VersionSchema = z.object({
   version: z.string(),
+  id: z.number(),
   released_at: z.string(),
   downloads: z.object({
     zip: z.url(),
@@ -30,6 +31,35 @@ function versionToUrl(version: string): { zip: string; exe: string } {
       zip: `https://spring-fragrance.mints.ne.jp/aviutl/aviutl2${version}.zip`,
       exe: `https://spring-fragrance.mints.ne.jp/aviutl/AviUtl2${version}_setup.exe`,
     };
+  }
+}
+function versionToId(version: string): number {
+  if (version.startsWith("v")) {
+    const pattern = /^v(\d+)\.(\d+)\.(\d+)([a-zA-Z]*)$/;
+    const match = version.match(pattern);
+    if (!match) {
+      throw new Error(`Invalid version format: ${version}`);
+    }
+    const major = parseInt(match[1], 10);
+    const minor = parseInt(match[2], 10);
+    const patch = parseInt(match[3], 10);
+    const shame = match[4] ? match[4].charCodeAt(0) - "a".charCodeAt(0) + 1 : 0;
+    return major * 1000000 + minor * 10000 + patch * 100 + shame;
+  } else if (version.startsWith("beta")) {
+    const pattern = /^beta(\d+)([a-zA-Z]*)$/;
+    const match = version.match(pattern);
+    if (!match) {
+      throw new Error(`Invalid beta version format: ${version}`);
+    }
+    const betaNumber = parseInt(match[1], 10);
+    const betaLetter = match[2] || "";
+    return (
+      2000000 +
+      betaNumber * 100 +
+      (betaLetter ? betaLetter.charCodeAt(0) - "a".charCodeAt(0) + 1 : 0)
+    );
+  } else {
+    throw new Error(`Invalid version format: ${version}`);
   }
 }
 
@@ -107,6 +137,7 @@ export async function fetchAviUtl2Versions(): Promise<AviUtl2Version[]> {
   const result: AviUtl2Version[] = await Promise.all(
     links.map(async (link) => ({
       version: link.startsWith("beta") ? `2.00${link}` : link,
+      id: versionToId(link),
       released_at: await fetchAviUtl2Timestamp(link),
       downloads: versionToUrl(link),
     })),
